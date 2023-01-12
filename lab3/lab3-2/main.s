@@ -1,0 +1,193 @@
+	.syntax unified
+	.cpu cortex-m4
+	.thumb
+
+.data
+	leds: .byte 0 // (or leds: .word)
+.text
+	.global main
+	.equ RCC_AHB2ENR, 0x4002104c	//enable port
+	.equ GPIOB_MODER, 0x48000400	//pin mode( input, output...)
+	.equ GPIOB_OTYPER, 0x48000404	//push pull/open drain
+	.equ GPIOB_OSPEEDR, 0x48000408	//speed
+	.equ GPIOB_PUPDR, 0x4800040C	//pull up/down
+	.equ GPIOB_ODR, 0x48000414	//output address
+
+	.equ GPIOC_MODER, 0x48000800	//pin mode( input, output...)
+	.equ GPIOC_OTYPER, 0x48000804	//push pull/open drain
+	.equ GPIOC_OSPEEDR, 0x48000808	//speed
+	.equ GPIOC_PUPDR, 0x4800080C	//pull up/down
+	.equ GPIOC_IDR, 0x48000810	//input address
+
+main:
+	bl GPIO_init
+	//(option) Test! Turn on all LEDs
+	movs r1, #1
+	ldr r0, =leds
+	strb r1, [r0]
+	mov r3, #0	//r3 is i
+	mov r6, #0  // r6 is 0, shine. r6 is 1, stop.
+Loop:
+	/* todo: check the button status to determine whether to
+		pause updating the LED pattern*/
+
+	// push button, r4=0
+	bl CheckPress
+	//magic
+	cmp r4, #0
+	it eq
+	ldreq r7, =300000
+	bl Delay
+
+	cmp r4, #0
+	it eq
+	beq Push
+	bne No_push
+
+Push:
+	cmp r6, #1
+	itee eq
+	moveq r6, #0 // start shining
+	movne r6, #1
+	bne Loop
+
+No_push:
+	cmp r6, #1
+	it eq
+	beq Loop // stop shining
+
+	cmp r3, #0
+	ittt eq
+	moveq r1, #14
+	ldreq r0, =leds
+	strbeq r1, [r0]
+
+
+	cmp r3, #1
+	ittt eq
+	moveq r1, #12
+	ldreq r0, =leds
+	strbeq r1, [r0]
+
+	cmp r3, #2
+	ittt eq
+	moveq r1, #9
+	ldreq r0, =leds
+	strbeq r1, [r0]
+
+	cmp r3, #3
+	ittt eq
+	moveq r1, #3
+	ldreq r0, =leds
+	strbeq r1, [r0]
+
+	cmp r3, #4
+	ittt eq
+	moveq r1, #7
+	ldreq r0, =leds
+	strbeq r1, [r0]
+
+	cmp r3, #5
+	ittt eq
+	moveq r1, #3
+	ldreq r0, =leds
+	strbeq r1, [r0]
+
+	cmp r3, #6
+	ittt eq
+	moveq r1, #9
+	ldreq r0, =leds
+	strbeq r1, [r0]
+
+	cmp r3, #7
+	ittt eq
+	moveq r1, #12
+	ldreq r0, =leds
+	strbeq r1, [r0]
+
+	cmp r3, #7
+	ite eq
+	moveq r3, #0
+	addne r3, r3, #1
+
+	bl DisplayLED
+	ldr r7, =300000
+	bl Delay
+	b Loop
+CheckPress:
+	/* todo: do debounce and check button state */
+
+	// sample 3 values
+	ldr r2, =GPIOC_IDR
+	ldr r4, [r2]
+	ldr r5, [r2]
+
+	cmp r4, r5
+	it ne
+	bne CheckPress
+
+	ldr r4, [r2]
+	cmp r4, r5
+	it ne
+	bne CheckPress
+
+	bx lr
+
+DisplayLED:
+	/* todo: display LED by leds */
+	ldr r2, =GPIOB_ODR
+
+	lsl r1, r1, #3	// shift left 3
+	strh r1, [r2]	//set the output
+
+	bx lr
+GPIO_init:
+	/* todo: initialize LED, button GPIO pins */
+
+	// enable AHB2 clock port b and port c
+	mov r0, #6
+	ldr r1, =RCC_AHB2ENR
+	str r0, [r1]
+
+	// set pins PB3-6 as output mode
+	mov r0, #0x1540
+	ldr r1, =GPIOB_MODER
+	ldr r2, [r1]
+	and r2, #0xFFFFC03F
+	orr r2, r2, r0
+	str r2, [r1]
+
+
+	// keep PUPDR as the default value(pull-up).
+	// set output speed register
+	mov r0, #0x2A80
+	ldr r1, =GPIOB_OSPEEDR
+	ldr r2, [r1]
+	and r2, #0xFFFFC03F
+	orr r2, r2, r0
+	str r2, [r1]
+
+	// set PC13 as input mode
+	mov r0, #0
+	ldr r1, =GPIOC_MODER
+	ldr r2, [r1]
+	and r2, #0xF3FFFFFF
+	orr r2, r2, r0
+	str r2, [r1]
+
+	// set PC13 as Pull-up
+	mov r0, #0x4000000
+	ldr r1, =GPIOC_PUPDR
+	str r0, [r1]
+
+	bx lr
+Delay:
+	/* TODO: Write a delay 1 sec function */
+	// You can implement this part by busy waiting.
+	// Timer and Interrupt will be introduced in later lectures.
+	cmp r7, #0
+	itt gt
+	subgt r7, r7, #1
+	bgt Delay
+
+	bx lr
